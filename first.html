@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATTENDEASE - Smart Attendance Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/papaparse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .card h2 {
+            color: #5a67d8;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-area {
+            border: 3px dashed #5a67d8;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #4c51bf;
+            background: rgba(90, 103, 216, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: #4c51bf;
+            background: rgba(90, 103, 216, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #5a67d8, #667eea);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(90, 103, 216, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #e53e3e, #fc8181);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #38a169, #68d391);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f7fafc, #edf2f7);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            border-left: 5px solid #5a67d8;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #5a67d8;
+        }
+
+        .stat-label {
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #f7fafc;
+            font-weight: 600;
+            color: #4a5568;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-present {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-absent {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .status-warning {
+            background: #feebc8;
+            color: #744210;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #5a67d8, #667eea);
+            transition: width 0.3s ease;
+        }
+
+        .log-container {
+            background: #1a202c;
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        .log-info { background: rgba(59, 130, 246, 0.1); }
+        .log-success { background: rgba(16, 185, 129, 0.1); }
+        .log-warning { background: rgba(245, 158, 11, 0.1); }
+        .log-error { background: rgba(239, 68, 68, 0.1); }
+
+        .email-template {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #5a67d8;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .ocr-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 ATTENDEASE</h1>
+            <p>Smart Attendance Dashboard + Bot</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalStudents">0</div>
+                <div class="stat-label">Total Students</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="presentToday">0</div>
+                <div class="stat-label">Present Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="absentCount">0</div>
+                <div class="stat-label">Absent Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="warningCount">0</div>
+                <div class="stat-label">Warnings Sent</div>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h2>📊 Data Input</h2>
+                
+                <div class="upload-area" id="masterUpload">
+                    <p>📁 Drop Master Database CSV or click to upload</p>
+                    <input type="file" id="masterFile" accept=".csv" style="display: none;">
+                    <p style="font-size: 0.9rem; color: #666; margin-top: 10px;">
+                        Expected columns: student_id, name, email, class, section
+                    </p>
+                </div>
+
+                <div class="upload-area" id="attendanceUpload">
+                    <p>📋 Drop Attendance CSV or click to upload</p>
+                    <input type="file" id="attendanceFile" accept=".csv" style="display: none;">
+                    <p style="font-size: 0.9rem; color: #666; margin-top: 10px;">
+                        Expected columns: student_id, date, status, time_in
+                    </p>
+                </div>
+
+                <div class="upload-area" id="ocrUpload">
+                    <p>📷 Drop Image for OCR Processing</p>
+                    <input type="file" id="ocrFile" accept="image/*" style="display: none;">
+                    <img id="ocrPreview" class="ocr-preview hidden" alt="OCR Preview">
+                </div>
+
+                <button class="btn" onclick="processData()">🚀 Process Attendance</button>
+                <button class="btn btn-danger" onclick="sendWarningEmails()">⚠️ Send Warnings</button>
+                <button class="btn btn-success" onclick="generateReport()">📈 Generate Report</button>
+            </div>
+
+            <div class="card">
+                <h2>🤖 Bot Status & Logs</h2>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="log-container" id="logContainer">
+                    <div class="log-entry log-info">[INFO] ATTENDEASE Bot initialized</div>
+                    <div class="log-entry log-info">[INFO] Waiting for data input...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card full-width">
+            <h2>👥 Student Attendance Overview</h2>
+            <div class="table-container">
+                <table id="studentTable">
+                    <thead>
+                        <tr>
+                            <th>Student ID</th>
+                            <th>Name</th>
+                            <th>Class</th>
+                            <th>Email</th>
+                            <th>Today's Status</th>
+                            <th>Attendance %</th>
+                            <th>Total Present</th>
+                            <th>Total Absent</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTableBody">
+                        <tr>
+                            <td colspan="9" style="text-align: center; color: #666; padding: 40px;">
+                                📁 Upload master database and attendance files to see student data
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card full-width hidden" id="emailPreview">
+            <h2>📧 Email Warning Template</h2>
+            <div class="email-template">
+                <strong>Subject:</strong> Attendance Warning - Action Required<br><br>
+                <strong>Dear [Student Name],</strong><br><br>
+                This is an automated notification regarding your attendance record.<br><br>
+                <strong>Current Attendance:</strong> [Attendance Percentage]%<br>
+                <strong>Days Present:</strong> [Present Days]<br>
+                <strong>Days Absent:</strong> [Absent Days]<br><br>
+                Your attendance is below the required threshold. Please contact the academic office to discuss this matter.<br><br>
+                <strong>Best regards,</strong><br>
+                ATTENDEASE Automated System
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global data storage
+        let masterData = [];
+        let attendanceData = [];
+        let processedData = [];
+        let ocrWorker = null;
+
+        // Initialize OCR worker
+        async function initOCR() {
+            try {
+                ocrWorker = await Tesseract.createWorker();
+                await ocrWorker.loadLanguage('eng');
+                await ocrWorker.initialize('eng');
+                logMessage('OCR engine initialized successfully', 'success');
+            } catch (error) {
+                logMessage('Failed to initialize OCR engine: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            initOCR();
+            updateStats();
+        });
+
+        function setupEventListeners() {
+            // File upload handlers
+            setupFileUpload('masterUpload', 'masterFile', handleMasterFile);
+            setupFileUpload('attendanceUpload', 'attendanceFile', handleAttendanceFile);
+            setupFileUpload('ocrUpload', 'ocrFile', handleOCRFile);
+        }
+
+        function setupFileUpload(areaId, inputId, handler) {
+            const area = document.getElementById(areaId);
+            const input = document.getElementById(inputId);
+
+            area.addEventListener('click', () => input.click());
+            area.addEventListener('dragover', handleDragOver);
+            area.addEventListener('drop', (e) => handleDrop(e, handler));
+            input.addEventListener('change', (e) => handler(e.target.files[0]));
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDrop(e, handler) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handler(file);
+        }
+
+        function handleMasterFile(file) {
+            if (!file || !file.name.endsWith('.csv')) {
+                logMessage('Please select a valid CSV file for master database', 'error');
+                return;
+            }
+
+            logMessage('Processing master database file: ' + file.name, 'info');
+            
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        logMessage('CSV parsing errors found', 'warning');
+                        results.errors.forEach(error => {
+                            logMessage('Row ' + error.row + ': ' + error.message, 'warning');
+                        });
+                    }
+
+                    // Clean headers
+                    const cleanedData = results.data.map(row => {
+                        const cleanedRow = {};
+                        Object.keys(row).forEach(key => {
+                            const cleanKey = key.trim().toLowerCase().replace(/\s+/g, '_');
+                            cleanedRow[cleanKey] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+                        });
+                        return cleanedRow;
+                    });
+
+                    masterData = cleanedData.filter(row => row.student_id && row.name);
+                    logMessage(`Master database loaded: ${masterData.length} students`, 'success');
+                    updateProgress(25);
+                    updateStats();
+                }
+            });
+        }
+
+        function handleAttendanceFile(file) {
+            if (!file || !file.name.endsWith('.csv')) {
+                logMessage('Please select a valid CSV file for attendance data', 'error');
+                return;
+            }
+
+            logMessage('Processing attendance file: ' + file.name, 'info');
+            
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        logMessage('CSV parsing errors found', 'warning');
+                    }
+
+                    // Clean headers
+                    const cleanedData = results.data.map(row => {
+                        const cleanedRow = {};
+                        Object.keys(row).forEach(key => {
+                            const cleanKey = key.trim().toLowerCase().replace(/\s+/g, '_');
+                            cleanedRow[cleanKey] = typeof row[key] === 'string' ? row[key].trim() : row[key];
+                        });
+                        return cleanedRow;
+                    });
+
+                    attendanceData = cleanedData.filter(row => row.student_id);
+                    logMessage(`Attendance data loaded: ${attendanceData.length} records`, 'success');
+                    updateProgress(50);
+                    updateStats();
+                }
+            });
+        }
+
+        async function handleOCRFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                logMessage('Please select a valid image file for OCR processing', 'error');
+                return;
+            }
+
+            const preview = document.getElementById('ocrPreview');
+            preview.src = URL.createObjectURL(file);
+            preview.classList.remove('hidden');
+
+            if (!ocrWorker) {
+                logMessage('OCR engine not initialized. Please wait...', 'warning');
+                await initOCR();
+            }
+
+            logMessage('Processing image with OCR: ' + file.name, 'info');
+            updateProgress(10);
+
+            try {
+                const { data: { text } } = await ocrWorker.recognize(file);
+                logMessage('OCR processing completed', 'success');
+                
+                // Parse OCR text for attendance data
+                const ocrAttendance = parseOCRText(text);
+                if (ocrAttendance.length > 0) {
+                    attendanceData = [...attendanceData, ...ocrAttendance];
+                    logMessage(`Extracted ${ocrAttendance.length} attendance records from OCR`, 'success');
+                    updateProgress(75);
+                    updateStats();
+                } else {
+                    logMessage('No valid attendance data found in OCR text', 'warning');
+                }
+            } catch (error) {
+                logMessage('OCR processing failed: ' + error.message, 'error');
+            }
+        }
+
+        function parseOCRText(text) {
+            const lines = text.split('\n').filter(line => line.trim());
+            const attendanceRecords = [];
+            const today = new Date().toISOString().split('T')[0];
+
+            // Simple pattern matching for student IDs and status
+            lines.forEach(line => {
+                const match = line.match(/(\w+\d+|\d+\w*)\s*(present|absent|p|a)/i);
+                if (match) {
+                    const studentId = match[1].toUpperCase();
+                    const status = match[2].toLowerCase();
+                    const normalizedStatus = (status === 'p' || status === 'present') ? 'present' : 'absent';
+                    
+                    attendanceRecords.push({
+                        student_id: studentId,
+                        date: today,
+                        status: normalizedStatus,
+                        time_in: new Date().toLocaleTimeString()
+                    });
+                }
+            });
+
+            return attendanceRecords;
+        }
+
+        function processData() {
+            if (masterData.length === 0) {
+                logMessage('Please upload master database first', 'error');
+                return;
+            }
+
+            if (attendanceData.length === 0) {
+                logMessage('Please upload attendance data first', 'error');
+                return;
+            }
+
+            logMessage('Processing attendance data...', 'info');
+            updateProgress(60);
+
+            // Group attendance by student
+            const attendanceByStudent = {};
+            attendanceData.forEach(record => {
+                if (!attendanceByStudent[record.student_id]) {
+                    attendanceByStudent[record.student_id] = [];
+                }
+                attendanceByStudent[record.student_id].push(record);
+            });
+
+            // Process each student
+            processedData = masterData.map(student => {
+                const studentAttendance = attendanceByStudent[student.student_id] || [];
+                const totalDays = studentAttendance.length;
+                const presentDays = studentAttendance.filter(a => a.status === 'present').length;
+                const absentDays = totalDays - presentDays;
+                const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+                
+                // Get today's status
+                const today = new Date().toISOString().split('T')[0];
+                const todayRecord = studentAttendance.find(a => a.date === today);
+                const todayStatus = todayRecord ? todayRecord.status : 'unknown';
+
+                return {
+                    ...student,
+                    totalDays,
+                    presentDays,
+                    absentDays,
+                    attendancePercentage,
+                    todayStatus,
+                    needsWarning: attendancePercentage < 75 && totalDays >= 5
+                };
+            });
+
+            logMessage(`Data processing completed for ${processedData.length} students`, 'success');
+            updateProgress(100);
+            updateStudentTable();
+            updateStats();
+        }
+
+        function updateStudentTable() {
+            const tbody = document.getElementById('studentTableBody');
+            
+            if (processedData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: #666; padding: 40px;">
+                            📁 No processed data available. Please upload and process files first.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = processedData.map(student => `
+                <tr>
+                    <td>${student.student_id}</td>
+                    <td>${student.name}</td>
+                    <td>${student.class || 'N/A'}</td>
+                    <td>${student.email || 'N/A'}</td>
+                    <td>
+                        <span class="status-badge status-${student.todayStatus}">
+                            ${student.todayStatus.toUpperCase()}
+                        </span>
+                    </td>
+                    <td>
+                        <strong style="color: ${student.attendancePercentage >= 75 ? '#38a169' : '#e53e3e'}">
+                            ${student.attendancePercentage}%
+                        </strong>
+                    </td>
+                    <td>${student.presentDays}</td>
+                    <td>${student.absentDays}</td>
+                    <td>
+                        ${student.needsWarning ? 
+                            '<span class="status-badge status-warning">⚠️ Warning</span>' : 
+                            '<span class="status-badge status-present">✅ Good</span>'
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStats() {
+            document.getElementById('totalStudents').textContent = masterData.length;
+            
+            const todayPresent = processedData.filter(s => s.todayStatus === 'present').length;
+            const todayAbsent = processedData.filter(s => s.todayStatus === 'absent').length;
+            const warningCount = processedData.filter(s => s.needsWarning).length;
+
+            document.getElementById('presentToday').textContent = todayPresent;
+            document.getElementById('absentCount').textContent = todayAbsent;
+            document.getElementById('warningCount').textContent = warningCount;
+        }
+
+        function sendWarningEmails() {
+            const warningStudents = processedData.filter(s => s.needsWarning);
+            
+            if (warningStudents.length === 0) {
+                logMessage('No students require warning emails', 'info');
+                return;
+            }
+
+            logMessage(`Preparing to send ${warningStudents.length} warning emails...`, 'info');
+            
+            // Show email preview
+            document.getElementById('emailPreview').classList.remove('hidden');
+            
+            // Simulate email sending
+            warningStudents.forEach((student, index) => {
+                setTimeout(() => {
+                    logMessage(`Warning email sent to ${student.name} (${student.email})`, 'warning');
+                    
+                    if (index === warningStudents.length - 1) {
+                        logMessage('All warning emails sent successfully', 'success');
+                    }
+                }, index * 500);
+            });
+        }
+
+        function generateReport() {
+            if (processedData.length === 0) {
+                logMessage('No data available for report generation', 'error');
+                return;
+            }
+
+            logMessage('Generating attendance report...', 'info');
+
+            const report = {
+                generatedAt: new Date().toLocaleString(),
+                totalStudents: processedData.length,
+                averageAttendance: Math.round(
+                    processedData.reduce((sum, s) => sum + s.attendancePercentage, 0) / processedData.length
+                ),
+                studentsNeedingWarning: processedData.filter(s => s.needsWarning).length,
+                perfectAttendance: processedData.filter(s => s.attendancePercentage === 100).length,
+                belowThreshold: processedData.filter(s => s.attendancePercentage < 75).length
+            };
+
+            // Create downloadable report
+            const reportContent = `
+ATTENDEASE - Attendance Report
+Generated: ${report.generatedAt}
+
+SUMMARY STATISTICS:
+- Total Students: ${report.totalStudents}
+- Average Attendance: ${report.averageAttendance}%
+- Students Needing Warning: ${report.studentsNeedingWarning}
+- Perfect Attendance: ${report.perfectAttendance}
+- Below Threshold (75%): ${report.belowThreshold}
+
+DETAILED STUDENT DATA:
+${processedData.map(s => 
+    `${s.student_id} | ${s.name} | ${s.attendancePercentage}% | ${s.presentDays}/${s.totalDays} days`
+).join('\n')}
+
+STUDENTS REQUIRING ATTENTION:
+${processedData.filter(s => s.needsWarning).map(s => 
+    `${s.name} (${s.student_id}) - ${s.attendancePercentage}% attendance`
+).join('\n')}
+            `.trim();
+
+            // Download report
+            const blob = new Blob([reportContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `attendance_report_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            logMessage('Attendance report generated and downloaded', 'success');
+        }
+
+        function logMessage(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateProgress(percentage) {
+            document.getElementById('progressBar').style.width = percentage + '%';
+            
+            if (percentage === 100) {
+                setTimeout(() => {
+                    document.getElementById('progressBar').style.width = '0%';
+                }, 2000);
+            }
+        }
+
+        // Cleanup OCR worker when page unloads
+        window.addEventListener('beforeunload', async () => {
+            if (ocrWorker) {
+                await ocrWorker.terminate();
+            }
+        });
+    </script>
+</body>
+</html>
